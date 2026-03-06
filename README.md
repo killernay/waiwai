@@ -10,7 +10,7 @@
   <br><br>
   <strong>ส่งไว รับไว ไม่ง้อ TCP</strong>
   <br>
-  Blazing-fast file transfer powered by QUIC
+  ส่งไฟล์ข้ามเครื่องด้วย QUIC — เร็วกว่า scp หลายเท่า
   <br><br>
   <a href="https://github.com/killernay/waiwai/actions/workflows/ci.yml"><img src="https://github.com/killernay/waiwai/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/killernay/waiwai/releases"><img src="https://img.shields.io/github/v/release/killernay/waiwai?include_prereleases&style=flat-square" alt="Release"></a>
@@ -20,146 +20,146 @@
 
 ---
 
-## Why waiwai?
+## ทำไมต้อง waiwai?
 
-TCP-based tools like `scp` and `rsync` are bottlenecked by a single stream and suffer badly on high-latency or lossy links. **waiwai** uses [QUIC](https://www.rfc-editor.org/rfc/rfc9000.html) to multiplex 8–32 parallel streams over UDP, saturating the pipe even on transcontinental WAN links.
+เครื่องมืออย่าง `scp` และ `rsync` ใช้ TCP ซึ่งส่งได้ทีละ stream เดียว พอเจอ latency สูงหรือ packet loss ความเร็วตกทันที **waiwai** ใช้ [QUIC](https://www.rfc-editor.org/rfc/rfc9000.html) ส่งพร้อมกัน 8–32 streams ผ่าน UDP ทำให้ใช้ bandwidth ได้เต็มท่อแม้ส่งข้ามประเทศ
 
-| Scenario | scp | waiwai (16 streams) | Speedup |
+| สถานการณ์ | scp | waiwai (16 streams) | เร็วขึ้น |
 |---|---|---|---|
 | LAN (< 1 ms RTT) | ~900 MB/s | ~900 MB/s | 1x |
 | WAN 150 ms RTT | ~20 MB/s | ~150 MB/s | **7.5x** |
-| WAN 200 ms + 1 % loss | ~5 MB/s | ~80 MB/s | **16x** |
+| WAN 200 ms + 1% loss | ~5 MB/s | ~80 MB/s | **16x** |
 
-## Features
+## คุณสมบัติ
 
-| Feature | Description |
+| คุณสมบัติ | รายละเอียด |
 |---|---|
-| **Multi-stream QUIC** | 8–32 parallel streams over a single connection |
-| **Resume** | Disconnect mid-transfer? Reconnect and pick up where you left off |
-| **Multi-file & directory** | Send entire directory trees in one command |
-| **Bandwidth throttle** | `--rate 50` caps at 50 MB/s — be nice to your network |
-| **Live monitoring** | JSON `/status` + Prometheus `/metrics` on both sides |
-| **TLS built-in** | Every byte encrypted via QUIC's mandatory TLS 1.3 |
-| **Zero config** | Auto-generated self-signed cert — just run and send |
-| **Cross-platform** | Linux, macOS, Windows — single static binary |
+| **Multi-stream QUIC** | ส่งพร้อมกัน 8–32 streams ในการเชื่อมต่อเดียว |
+| **Resume** | หลุดกลางทาง เชื่อมใหม่แล้วส่งต่อจากจุดเดิมได้เลย |
+| **ส่งได้ทั้งไฟล์และโฟลเดอร์** | ส่งทั้งโฟลเดอร์พร้อมโครงสร้างในคำสั่งเดียว |
+| **จำกัด bandwidth** | `--rate 50` จำกัดที่ 50 MB/s ไม่กิน bandwidth คนอื่น |
+| **ดูสถานะ realtime** | JSON `/status` + Prometheus `/metrics` ทั้งฝั่งส่งและรับ |
+| **เข้ารหัสทุก byte** | ใช้ TLS 1.3 ผ่าน QUIC โดยอัตโนมัติ |
+| **ไม่ต้องตั้งค่า** | สร้าง cert เองอัตโนมัติ — สั่งรันแล้วส่งได้เลย |
+| **ทุก OS** | Linux, macOS, Windows — ไฟล์เดียว ไม่ต้องติดตั้งอะไรเพิ่ม |
 
 ---
 
-# For Users — Download & Use
+# สำหรับผู้ใช้ — โหลดแล้วใช้ได้เลย
 
-ไม่ต้อง build เอง แค่ download แล้วใช้ได้เลย
+ไม่ต้อง build เอง ไม่ต้องติดตั้ง Go แค่โหลด binary แล้วรันได้ทันที
 
-## Download
+## ดาวน์โหลด
 
-ไปที่ [**Releases**](https://github.com/killernay/waiwai/releases/latest) แล้วเลือก binary ตาม OS:
+ไปที่หน้า [**Releases**](https://github.com/killernay/waiwai/releases/latest) แล้วเลือกตาม OS ของคุณ:
 
-| OS | Architecture | Download |
+| ระบบปฏิบัติการ | สถาปัตยกรรม | ดาวน์โหลด |
 |---|---|---|
-| **Windows** | x64 | [`waiwai_windows_amd64.zip`](https://github.com/killernay/waiwai/releases/latest/download/waiwai_0.1.0_windows_amd64.zip) |
+| **Windows** | x64 (ทั่วไป) | [`waiwai_windows_amd64.zip`](https://github.com/killernay/waiwai/releases/latest/download/waiwai_0.1.0_windows_amd64.zip) |
 | **Windows** | ARM64 | [`waiwai_windows_arm64.zip`](https://github.com/killernay/waiwai/releases/latest/download/waiwai_0.1.0_windows_arm64.zip) |
-| **macOS** | Apple Silicon | [`waiwai_darwin_arm64.tar.gz`](https://github.com/killernay/waiwai/releases/latest/download/waiwai_0.1.0_darwin_arm64.tar.gz) |
+| **macOS** | Apple Silicon (M1/M2/M3/M4) | [`waiwai_darwin_arm64.tar.gz`](https://github.com/killernay/waiwai/releases/latest/download/waiwai_0.1.0_darwin_arm64.tar.gz) |
 | **macOS** | Intel | [`waiwai_darwin_amd64.tar.gz`](https://github.com/killernay/waiwai/releases/latest/download/waiwai_0.1.0_darwin_amd64.tar.gz) |
-| **Linux** | x64 | [`waiwai_linux_amd64.tar.gz`](https://github.com/killernay/waiwai/releases/latest/download/waiwai_0.1.0_linux_amd64.tar.gz) |
+| **Linux** | x64 (ทั่วไป) | [`waiwai_linux_amd64.tar.gz`](https://github.com/killernay/waiwai/releases/latest/download/waiwai_0.1.0_linux_amd64.tar.gz) |
 | **Linux** | ARM64 | [`waiwai_linux_arm64.tar.gz`](https://github.com/killernay/waiwai/releases/latest/download/waiwai_0.1.0_linux_arm64.tar.gz) |
 
-### Windows
+### วิธีติดตั้ง — Windows
 
 ```powershell
-# 1. Download and extract
+# 1. โหลดและแตก zip
 Invoke-WebRequest -Uri "https://github.com/killernay/waiwai/releases/latest/download/waiwai_0.1.0_windows_amd64.zip" -OutFile waiwai.zip
 Expand-Archive waiwai.zip -DestinationPath .
 
-# 2. Use it
+# 2. ใช้งานได้เลย
 .\waiwai.exe --help
 ```
 
-### macOS / Linux
+### วิธีติดตั้ง — macOS / Linux
 
 ```bash
-# 1. Download and extract (example: macOS ARM64)
+# 1. โหลดและแตกไฟล์ (ตัวอย่าง: macOS Apple Silicon)
 curl -L https://github.com/killernay/waiwai/releases/latest/download/waiwai_0.1.0_darwin_arm64.tar.gz | tar xz
 
-# 2. Move to PATH (optional)
+# 2. ย้ายเข้า PATH (ไม่บังคับ แต่จะเรียกใช้ง่ายขึ้น)
 sudo mv waiwai /usr/local/bin/
 
-# 3. Use it
+# 3. ใช้งานได้เลย
 waiwai --help
 ```
 
-## Quick Start
+## เริ่มต้นใช้งาน
 
-**Step 1 — Start the receiver** (on the destination machine):
+**ขั้นตอนที่ 1 — เปิดรับไฟล์** (รันบนเครื่องปลายทางก่อน):
 
 ```bash
 waiwai recv --out /data/incoming
 ```
 
-**Step 2 — Send files** (on the source machine):
+**ขั้นตอนที่ 2 — ส่งไฟล์** (รันบนเครื่องต้นทาง):
 
 ```bash
 waiwai send photo.jpg 192.168.1.100:4242
 ```
 
-That's it. Files land in `/data/incoming`.
+เสร็จ! ไฟล์จะอยู่ที่ `/data/incoming`
 
-## Usage Examples
+## ตัวอย่างการใช้งาน
 
 ```bash
-# Send a single file
+# ส่งไฟล์เดียว
 waiwai send photo.jpg 192.168.1.100:4242
 
-# Send an entire directory with 16 streams
+# ส่งทั้งโฟลเดอร์ ใช้ 16 streams
 waiwai send -s 16 ./footage/ 192.168.1.100:4242
 
-# Limit bandwidth to 50 MB/s
+# จำกัด bandwidth ที่ 50 MB/s
 waiwai send --rate 50 bigfile.bin 192.168.1.100:4242
 
-# Resume an interrupted transfer
+# ส่งต่อจากที่หลุดไป (resume)
 waiwai send --resume myjob bigfile.bin 192.168.1.100:4242
 
-# Receive on a custom port
+# รับไฟล์บน port อื่น
 waiwai recv --listen 0.0.0.0:5000 --out /data/incoming
 
-# Enable live monitoring on both sides
+# เปิดดูสถานะ realtime ทั้งสองฝั่ง
 waiwai send --monitor :9090 ./footage/ 192.168.1.100:4242
 waiwai recv --out /data --monitor :9091
 
-# Check transfer status
+# เช็คสถานะการส่ง
 waiwai status localhost:9090
 ```
 
-## CLI Reference
+## คำสั่งทั้งหมด
 
-### `waiwai send`
+### `waiwai send` — ส่งไฟล์
 
 ```
-waiwai send [flags] <file|directory>... <host:port>
+waiwai send [flags] <ไฟล์|โฟลเดอร์>... <host:port>
 ```
 
-| Flag | Default | Description |
+| Flag | ค่าเริ่มต้น | คำอธิบาย |
 |---|---|---|
-| `-s, --streams` | `8` | Number of parallel QUIC streams |
-| `-r, --rate` | `0` (unlimited) | Bandwidth limit in MB/s |
-| `--resume` | | Session ID to resume a previous transfer |
-| `--monitor` | | Start metrics server (e.g. `:9090`) |
-| `--cert` | | TLS certificate file (optional) |
-| `--key` | | TLS private key file (optional) |
+| `-s, --streams` | `8` | จำนวน stream ที่ส่งพร้อมกัน |
+| `-r, --rate` | `0` (ไม่จำกัด) | จำกัด bandwidth (หน่วย MB/s) |
+| `--resume` | | session ID สำหรับส่งต่อจากที่หลุด |
+| `--monitor` | | เปิด metrics server เช่น `:9090` |
+| `--cert` | | ไฟล์ TLS certificate (ไม่บังคับ) |
+| `--key` | | ไฟล์ TLS private key (ไม่บังคับ) |
 
-### `waiwai recv`
+### `waiwai recv` — รับไฟล์
 
 ```
 waiwai recv [flags]
 ```
 
-| Flag | Default | Description |
+| Flag | ค่าเริ่มต้น | คำอธิบาย |
 |---|---|---|
-| `-l, --listen` | `0.0.0.0:4242` | Address to listen on |
-| `-o, --out` | `.` | Output directory |
-| `--monitor` | | Start metrics server (e.g. `:9091`) |
-| `--cert` | | TLS certificate file (optional) |
-| `--key` | | TLS private key file (optional) |
+| `-l, --listen` | `0.0.0.0:4242` | address ที่จะ listen |
+| `-o, --out` | `.` (โฟลเดอร์ปัจจุบัน) | โฟลเดอร์ที่จะบันทึกไฟล์ |
+| `--monitor` | | เปิด metrics server เช่น `:9091` |
+| `--cert` | | ไฟล์ TLS certificate (ไม่บังคับ) |
+| `--key` | | ไฟล์ TLS private key (ไม่บังคับ) |
 
-### `waiwai status`
+### `waiwai status` — ดูสถานะ
 
 ```
 waiwai status <monitor-addr>
@@ -177,117 +177,117 @@ waiwai status <monitor-addr>
 
 ## Monitoring Endpoints
 
-Both sender and receiver expose HTTP endpoints when started with `--monitor`:
+ทั้งฝั่งส่งและรับจะเปิด HTTP endpoint เมื่อใส่ `--monitor`:
 
-| Endpoint | Format | Description |
+| Endpoint | รูปแบบ | คำอธิบาย |
 |---|---|---|
-| `GET /status` | JSON | Human-friendly snapshot |
-| `GET /metrics` | Prometheus text | Scrapeable by Prometheus / Grafana |
-| `GET /health` | Plain text | Health check (`ok`) |
+| `GET /status` | JSON | สถานะแบบอ่านง่าย |
+| `GET /metrics` | Prometheus text | สำหรับ scrape ด้วย Prometheus / Grafana |
+| `GET /health` | Plain text | เช็คว่าทำงานอยู่ (`ok`) |
 
-## Requirements
+## ข้อกำหนด
 
-- **UDP port 4242** open between sender and receiver (default port)
-- Works great with [Tailscale](https://tailscale.com) — no port forwarding needed
+- เปิด **UDP port 4242** ระหว่างเครื่องส่งและรับ (port เริ่มต้น)
+- ใช้กับ [Tailscale](https://tailscale.com) ได้เลย ไม่ต้อง forward port
 
 ---
 
-# For Developers — Build & Contribute
+# สำหรับนักพัฒนา — Build และร่วมพัฒนา
 
-## Prerequisites
+## สิ่งที่ต้องมี
 
 - **Go 1.22+**
-- **goreleaser** (optional, for cross-platform builds)
-- **golangci-lint** (optional, for linting)
+- **goreleaser** (ไม่บังคับ สำหรับ build ทุก platform)
+- **golangci-lint** (ไม่บังคับ สำหรับตรวจสอบโค้ด)
 
-## Install from Source
+## ติดตั้งจาก source
 
 ```bash
 go install github.com/killernay/waiwai/cmd/waiwai@latest
 ```
 
-## Build from Source
+## Build จาก source
 
 ```bash
 git clone https://github.com/killernay/waiwai.git
 cd waiwai
 
 make build          # → bin/waiwai
-make test           # go test ./... -race
-make lint           # golangci-lint run
+make test           # รัน test พร้อม race detector
+make lint           # ตรวจสอบโค้ดด้วย golangci-lint
 ```
 
-## Project Structure
+## โครงสร้างโปรเจค
 
 ```
 waiwai/
-├── cmd/waiwai/main.go            # CLI entry point (cobra)
+├── cmd/waiwai/main.go            # จุดเริ่มต้น CLI (cobra)
 ├── pkg/protocol/protocol.go      # Wire format: control messages + binary chunks
 ├── internal/
-│   ├── transfer/transfer.go      # Core send/receive engine
-│   ├── transfer/tls_gen.go       # Self-signed TLS generation
-│   ├── checkpoint/checkpoint.go  # Resume state persistence
-│   ├── throttle/throttle.go      # Token-bucket bandwidth limiter
-│   ├── monitor/monitor.go        # Metrics HTTP server
-│   └── ui/ui.go                  # Terminal progress bars
-├── .goreleaser.yaml              # Cross-platform release pipeline
+│   ├── transfer/transfer.go      # engine หลัก ส่ง/รับ
+│   ├── transfer/tls_gen.go       # สร้าง self-signed TLS cert
+│   ├── checkpoint/checkpoint.go  # เก็บสถานะสำหรับ resume
+│   ├── throttle/throttle.go      # token-bucket bandwidth limiter
+│   ├── monitor/monitor.go        # HTTP server สำหรับ metrics
+│   └── ui/ui.go                  # progress bar บน terminal
+├── .goreleaser.yaml              # pipeline สำหรับ build ทุก platform
 └── .github/workflows/
-    ├── ci.yml                    # Test on every PR
-    └── release.yml               # Build + release on tag push
+    ├── ci.yml                    # รัน test ทุก PR
+    └── release.yml               # build + release เมื่อ push tag
 ```
 
-## Protocol Design
+## การออกแบบ Protocol
 
 ```
-Stream 0   ─── Control (length-prefixed JSON) ───────────────────────
+Stream 0   ─── Control (JSON มี length prefix) ─────────────────────
                  hello → accept → file_info → file_ack → ... → done
 
-Stream 1+  ─── Data (binary chunk headers + payload) ────────────────
+Stream 1+  ─── Data (binary chunk header + payload) ────────────────
                  [fileID:2][chunkIdx:8][dataLen:4][sha256:32][data...]
 ```
 
-- **Control stream** carries handshake, file metadata, and acks as JSON envelopes
-- **Data streams** (1–32) carry file chunks with compact 46-byte binary headers
-- Each chunk is individually SHA-256 verified for integrity
-- Resume works by tracking received chunks in a checkpoint file
+- **Control stream** ส่ง handshake, metadata ของไฟล์ และ ack เป็น JSON
+- **Data streams** (1–32 streams) ส่ง chunk ของไฟล์พร้อม binary header ขนาด 46 bytes
+- ทุก chunk ถูกตรวจสอบ SHA-256 เพื่อความถูกต้อง
+- Resume ทำงานโดยบันทึก chunk ที่รับแล้วลง checkpoint file
 
-## Makefile Targets
+## คำสั่ง Makefile
 
-| Target | Description |
+| คำสั่ง | คำอธิบาย |
 |---|---|
-| `make build` | Build binary to `bin/waiwai` |
-| `make test` | Run tests with race detector |
-| `make lint` | Run golangci-lint |
-| `make snapshot` | Local goreleaser snapshot (all platforms) |
-| `make tag` | Create and push a release tag |
-| `make testfile` | Generate 1 GB test file |
-| `make bench-scp` | Benchmark scp transfer |
-| `make bench-waiwai` | Benchmark waiwai transfer |
-| `make clean` | Remove build artifacts |
+| `make build` | build binary ไปที่ `bin/waiwai` |
+| `make test` | รัน test พร้อม race detector |
+| `make lint` | ตรวจสอบโค้ดด้วย golangci-lint |
+| `make snapshot` | build ทุก platform แบบ local (ไม่ publish) |
+| `make tag` | สร้าง tag แล้ว push — GitHub Actions ทำ release ให้อัตโนมัติ |
+| `make testfile` | สร้างไฟล์ทดสอบขนาด 1 GB |
+| `make bench-scp` | วัดความเร็ว scp |
+| `make bench-waiwai` | วัดความเร็ว waiwai |
+| `make clean` | ลบไฟล์ที่ build ออก |
 
-## Release Process
+## วิธี Release
 
-Releases are fully automated via GitHub Actions:
+Release ทำงานอัตโนมัติผ่าน GitHub Actions:
 
 ```bash
-# Create a tag → GitHub Actions builds all platforms automatically
+# สร้าง tag → GitHub Actions จะ build ทุก platform ให้เอง
 make tag
-# Enter version: v0.2.0
-# → Binaries for linux/darwin/windows (amd64+arm64) appear on GitHub Releases
+# ใส่เวอร์ชัน: v0.2.0
+# → binary สำหรับ linux/darwin/windows (amd64+arm64) ขึ้นบน GitHub Releases อัตโนมัติ
 ```
 
-## Contributing
+## ร่วมพัฒนา
 
-Contributions are welcome! Please open an issue first to discuss what you'd like to change.
+ยินดีรับ contribution ทุกรูปแบบ! แนะนำให้เปิด issue ก่อนเพื่อพูดคุยกัน
 
-1. Fork the repo
-2. Create your feature branch (`git checkout -b feature/amazing`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing`)
-5. Open a Pull Request
+1. Fork repo นี้
+2. สร้าง branch ใหม่ (`git checkout -b feature/amazing`)
+3. Commit การเปลี่ยนแปลง (`git commit -m 'เพิ่มฟีเจอร์ amazing'`)
+4. Push ขึ้น branch (`git push origin feature/amazing`)
+5. เปิด Pull Request
 
 ---
 
-## License
+## สัญญาอนุญาต
 
-[MIT](LICENSE)
+[MIT](LICENSE) — ใช้ได้ตามสบาย
