@@ -14,11 +14,11 @@ import (
 	"time"
 
 	"github.com/quic-go/quic-go"
-	"github.com/waiwai-transfer/waiwai/internal/checkpoint"
-	"github.com/waiwai-transfer/waiwai/internal/monitor"
-	"github.com/waiwai-transfer/waiwai/internal/throttle"
-	"github.com/waiwai-transfer/waiwai/internal/ui"
-	"github.com/waiwai-transfer/waiwai/pkg/protocol"
+	"github.com/killernay/waiwai/internal/checkpoint"
+	"github.com/killernay/waiwai/internal/monitor"
+	"github.com/killernay/waiwai/internal/throttle"
+	"github.com/killernay/waiwai/internal/ui"
+	"github.com/killernay/waiwai/pkg/protocol"
 )
 
 // ─── SendOptions ─────────────────────────────────────────────────────────────

@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/waiwai-transfer/waiwai/internal/monitor"
-	"github.com/waiwai-transfer/waiwai/internal/transfer"
+	"github.com/killernay/waiwai/internal/monitor"
+	"github.com/killernay/waiwai/internal/transfer"
 )
 
 var version = "dev"

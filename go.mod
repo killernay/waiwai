@@ -1,4 +1,4 @@
-module github.com/waiwai-transfer/waiwai
+module github.com/killernay/waiwai
 
 go 1.22
 
