@@ -190,6 +190,8 @@ waiwai status <monitor-addr>
 - เปิด **UDP port 4242** ระหว่างเครื่องส่งและรับ (port เริ่มต้น)
 - ใช้กับ [Tailscale](https://tailscale.com) ได้เลย ไม่ต้อง forward port
 
+> **หมายเหตุเรื่อง 5G / มือถือ:** waiwai ใช้ QUIC ซึ่งทำงานบน UDP — ผู้ให้บริการมือถือบางราย (AIS, TRUE, DTAC) อาจ throttle หรือ block UDP traffic ทำให้ส่งช้าผิดปกติหรือเชื่อมต่อไม่ได้ หากเจอปัญหานี้ แนะนำให้ใช้ผ่าน WiFi หรือเครือข่ายแบบมีสายแทน
+
 ---
 
 # สำหรับนักพัฒนา — Build และร่วมพัฒนา
