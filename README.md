@@ -88,6 +88,8 @@ waiwai --help
 
 ## เริ่มต้นใช้งาน
 
+### macOS / Linux
+
 **ขั้นตอนที่ 1 — เปิดรับไฟล์** (รันบนเครื่องปลายทางก่อน):
 
 ```bash
@@ -102,7 +104,31 @@ waiwai send photo.jpg 192.168.1.100:4242
 
 เสร็จ! ไฟล์จะอยู่ที่ `/data/incoming`
 
+### Windows
+
+**ขั้นตอนที่ 1 — เปิดรับไฟล์** (รันบนเครื่องปลายทางก่อน):
+
+```powershell
+# รับไฟล์ไว้ที่โฟลเดอร์ Downloads\incoming
+.\waiwai.exe recv --out C:\Users\YourName\Downloads\incoming
+```
+
+> Windows อาจถาม **Windows Firewall** ให้กด **Allow access** เพื่อเปิดให้รับข้อมูลผ่าน UDP ได้
+
+**ขั้นตอนที่ 2 — ส่งไฟล์** (รันบนเครื่องต้นทาง):
+
+```powershell
+# ส่งไฟล์ไปยัง IP ของเครื่องรับ
+.\waiwai.exe send photo.jpg 192.168.1.100:4242
+```
+
+> **หา IP เครื่อง Windows:** เปิด PowerShell พิมพ์ `ipconfig` แล้วดูที่ **IPv4 Address**
+
+เสร็จ! ไฟล์จะอยู่ที่ `C:\Users\YourName\Downloads\incoming`
+
 ## ตัวอย่างการใช้งาน
+
+### macOS / Linux
 
 ```bash
 # ส่งไฟล์เดียว
@@ -126,6 +152,32 @@ waiwai recv --out /data --monitor :9091
 
 # เช็คสถานะการส่ง
 waiwai status localhost:9090
+```
+
+### Windows (PowerShell)
+
+```powershell
+# ส่งไฟล์เดียว
+.\waiwai.exe send photo.jpg 192.168.1.100:4242
+
+# ส่งทั้งโฟลเดอร์ ใช้ 16 streams
+.\waiwai.exe send -s 16 .\footage\ 192.168.1.100:4242
+
+# จำกัด bandwidth ที่ 50 MB/s
+.\waiwai.exe send --rate 50 bigfile.bin 192.168.1.100:4242
+
+# ส่งต่อจากที่หลุดไป (resume)
+.\waiwai.exe send --resume myjob bigfile.bin 192.168.1.100:4242
+
+# รับไฟล์ไว้ที่โฟลเดอร์ที่ต้องการ
+.\waiwai.exe recv --listen 0.0.0.0:5000 --out C:\data\incoming
+
+# เปิดดูสถานะ realtime ทั้งสองฝั่ง
+.\waiwai.exe send --monitor :9090 .\footage\ 192.168.1.100:4242
+.\waiwai.exe recv --out C:\data --monitor :9091
+
+# เช็คสถานะการส่ง
+.\waiwai.exe status localhost:9090
 ```
 
 ## คำสั่งทั้งหมด
