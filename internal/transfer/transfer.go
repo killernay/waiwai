@@ -15,6 +15,7 @@ import (
 
 	"github.com/quic-go/quic-go"
 	"github.com/killernay/waiwai/internal/checkpoint"
+	"github.com/killernay/waiwai/internal/fec"
 	"github.com/killernay/waiwai/internal/monitor"
 	"github.com/killernay/waiwai/internal/throttle"
 	"github.com/killernay/waiwai/internal/ui"
@@ -24,13 +25,14 @@ import (
 // ─── SendOptions ─────────────────────────────────────────────────────────────
 
 type SendOptions struct {
-	Addr        string
-	Paths       []string // files or directories
-	NumStreams   int
-	RateLimitMB int64  // MB/s, 0 = unlimited
-	SessionID   string // for resume; auto-generated if empty
-	MonitorAddr string // e.g. ":9090"
-	TLSConfig   *tls.Config
+	Addr         string
+	Paths        []string // files or directories
+	NumStreams    int
+	RateLimitMB  int64  // MB/s, 0 = unlimited
+	SessionID    string // for resume; auto-generated if empty
+	MonitorAddr  string // e.g. ":9090"
+	TLSConfig    *tls.Config
+	FECGroupSize int // 0 = disabled, N = ทุก N data chunks สร้าง 1 parity chunk
 }
 
 // Send connects to a receiver and transfers all files.
@@ -86,12 +88,13 @@ func Send(ctx context.Context, opts SendOptions) error {
 
 	// Handshake
 	if err := protocol.WriteMsg(ctrl, protocol.MsgHello, protocol.Hello{
-		Version:    protocol.Version,
-		SessionID:  opts.SessionID,
-		FileCount:  len(files),
-		TotalBytes: totalBytes,
-		NumStreams:  opts.NumStreams,
-		RateLimit:  opts.RateLimitMB * 1024 * 1024,
+		Version:      protocol.Version,
+		SessionID:    opts.SessionID,
+		FileCount:    len(files),
+		TotalBytes:   totalBytes,
+		NumStreams:    opts.NumStreams,
+		RateLimit:    opts.RateLimitMB * 1024 * 1024,
+		FECGroupSize: opts.FECGroupSize,
 	}); err != nil {
 		return err
 	}
@@ -145,7 +148,7 @@ func Send(ctx context.Context, opts SendOptions) error {
 
 		fp := display.AddFile(fi.Name, fi.Size-resumeChunk*protocol.ChunkSize)
 		if err := sendFile(ctx, conn, fi, uint16(i), resumeChunk, chunkCount,
-			opts.NumStreams, limiter, fp); err != nil {
+			opts.NumStreams, limiter, fp, opts.FECGroupSize); err != nil {
 			monitor.Global.Errors.Add(1)
 			return fmt.Errorf("send %s: %w", fi.Name, err)
 		}
@@ -154,6 +157,13 @@ func Send(ctx context.Context, opts SendOptions) error {
 
 	protocol.WriteMsg(ctrl, protocol.MsgDone, struct{}{})
 	return nil
+}
+
+// chunkWork represents either a data chunk or a FEC parity chunk to send.
+type chunkWork struct {
+	chunkIdx int64
+	flags    byte   // protocol.FlagData or protocol.FlagParity
+	data     []byte // pre-read data (for parity chunks)
 }
 
 func sendFile(
@@ -165,6 +175,7 @@ func sendFile(
 	numStreams int,
 	limiter *throttle.Limiter,
 	fp *ui.FileProgress,
+	fecGroupSize int,
 ) error {
 	f, err := os.Open(fi.AbsPath)
 	if err != nil {
@@ -172,24 +183,51 @@ func sendFile(
 	}
 	defer f.Close()
 
-	// Build chunk list (skipping already sent chunks)
-	var chunks []int64
+	// Build work list: data chunks + optional FEC parity chunks
+	var works []chunkWork
+	var fecGroup [][]byte
+
 	for i := resumeChunk; i < chunkCount; i++ {
-		chunks = append(chunks, i)
+		works = append(works, chunkWork{chunkIdx: i, flags: protocol.FlagData})
+
+		// สร้าง FEC parity ทุก N chunks
+		if fecGroupSize > 0 {
+			// อ่าน chunk data สำหรับ FEC
+			buf := make([]byte, protocol.ChunkSize)
+			offset := i * protocol.ChunkSize
+			n, rerr := f.ReadAt(buf, offset)
+			if rerr != nil && rerr != io.EOF {
+				return fmt.Errorf("read chunk %d for fec: %w", i, rerr)
+			}
+			fecGroup = append(fecGroup, buf[:n])
+
+			if len(fecGroup) == fecGroupSize || i == chunkCount-1 {
+				// สร้าง parity chunk
+				parity := fec.Encode(fecGroup)
+				// parity chunk ใช้ chunkIdx = index ของ chunk แรกในกลุ่ม (ลบ)
+				groupStartIdx := i - int64(len(fecGroup)) + 1
+				works = append(works, chunkWork{
+					chunkIdx: groupStartIdx,
+					flags:    protocol.FlagParity,
+					data:     parity,
+				})
+				fecGroup = fecGroup[:0]
+			}
+		}
 	}
 
-	// Distribute chunks across streams
-	chunkCh := make(chan int64, len(chunks))
-	for _, c := range chunks {
-		chunkCh <- c
+	// Distribute work across streams
+	workCh := make(chan chunkWork, len(works))
+	for _, w := range works {
+		workCh <- w
 	}
-	close(chunkCh)
+	close(workCh)
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, numStreams)
 	actual := numStreams
-	if int64(actual) > int64(len(chunks)) {
-		actual = len(chunks)
+	if int64(actual) > int64(len(works)) {
+		actual = len(works)
 	}
 
 	monitor.Global.ActiveStreams.Add(int32(actual))
@@ -207,25 +245,35 @@ func sendFile(
 			defer stream.Close()
 
 			buf := make([]byte, protocol.ChunkSize)
-			for chunkIdx := range chunkCh {
-				offset := chunkIdx * protocol.ChunkSize
-				n, err := f.ReadAt(buf, offset)
-				if err != nil && err != io.EOF {
-					errCh <- fmt.Errorf("read chunk %d: %w", chunkIdx, err)
-					return
+			for work := range workCh {
+				var data []byte
+				if work.flags == protocol.FlagParity {
+					// parity chunk มี data อยู่แล้ว
+					data = work.data
+				} else {
+					// อ่าน data chunk จากไฟล์
+					offset := work.chunkIdx * protocol.ChunkSize
+					n, err := f.ReadAt(buf, offset)
+					if err != nil && err != io.EOF {
+						errCh <- fmt.Errorf("read chunk %d: %w", work.chunkIdx, err)
+						return
+					}
+					data = make([]byte, n)
+					copy(data, buf[:n])
 				}
-				data := buf[:n]
 
 				var w io.Writer = stream
 				if limiter != nil {
 					w = throttle.NewWriter(stream, limiter)
 				}
-				if err := protocol.WriteChunk(w, fileID, chunkIdx, data); err != nil {
-					errCh <- fmt.Errorf("write chunk %d: %w", chunkIdx, err)
+				if err := protocol.WriteChunkFlags(w, fileID, work.chunkIdx, work.flags, data); err != nil {
+					errCh <- fmt.Errorf("write chunk %d: %w", work.chunkIdx, err)
 					return
 				}
-				fp.Add(int64(n))
-				monitor.Global.BytesSent.Add(int64(n))
+				if work.flags == protocol.FlagData {
+					fp.Add(int64(len(data)))
+					monitor.Global.BytesSent.Add(int64(len(data)))
+				}
 			}
 		}()
 	}
@@ -394,6 +442,13 @@ func handleConn(ctx context.Context, conn quic.Connection, outDir string) error 
 	}
 	fileMap := sync.Map{}
 
+	// FEC parity storage: fileID → groupStartIdx → parity data
+	type parityKey struct {
+		fileID   uint16
+		groupIdx int64
+	}
+	parityMap := sync.Map{}
+
 	// Accept data streams in background
 	streamErr := make(chan error, 128)
 	go func() {
@@ -405,10 +460,17 @@ func handleConn(ctx context.Context, conn quic.Connection, outDir string) error 
 			go func(s quic.Stream) {
 				defer s.Close()
 				for {
-					fileID, chunkIdx, data, err := protocol.ReadChunk(s)
+					fileID, chunkIdx, flags, data, err := protocol.ReadChunkFlags(s)
 					if err != nil {
 						return // EOF = stream done
 					}
+
+					// FEC parity chunk → เก็บไว้ ไม่ต้อง write ลงไฟล์
+					if flags == protocol.FlagParity {
+						parityMap.Store(parityKey{fileID, chunkIdx}, data)
+						continue
+					}
+
 					val, ok := fileMap.Load(fileID)
 					if !ok {
 						streamErr <- fmt.Errorf("unknown fileID %d", fileID)
@@ -430,6 +492,7 @@ func handleConn(ctx context.Context, conn quic.Connection, outDir string) error 
 			}(stream)
 		}
 	}()
+	// parityMap ถูกใช้โดย goroutine ด้านบนสำหรับเก็บ FEC parity
 
 	// Process FileInfo messages sequentially on control stream
 	for {

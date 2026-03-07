@@ -88,12 +88,13 @@ func ReadMsg(r io.Reader) (MsgType, json.RawMessage, error) {
 // ─── Hello / Accept ───────────────────────────────────────────────────────────
 
 type Hello struct {
-	Version    int    `json:"version"`
-	SessionID  string `json:"session_id"`   // UUID, used for resume
-	FileCount  int    `json:"file_count"`
-	TotalBytes int64  `json:"total_bytes"`
-	NumStreams  int    `json:"num_streams"`
-	RateLimit  int64  `json:"rate_limit_bps"` // 0 = unlimited
+	Version      int    `json:"version"`
+	SessionID    string `json:"session_id"`   // UUID, used for resume
+	FileCount    int    `json:"file_count"`
+	TotalBytes   int64  `json:"total_bytes"`
+	NumStreams   int    `json:"num_streams"`
+	RateLimit    int64  `json:"rate_limit_bps"` // 0 = unlimited
+	FECGroupSize int    `json:"fec_group_size"` // 0 = disabled, N = ทุก N chunks สร้าง 1 parity
 }
 
 type Accept struct {
@@ -139,29 +140,44 @@ type Error struct {
 }
 
 // ─── Binary chunk header (compact, on data streams) ──────────────────────────
-// Layout: [fileID:2][chunkIdx:8][dataLen:4][checksum:32] = 46 bytes
+// Layout: [fileID:2][chunkIdx:8][flags:1][dataLen:4][checksum:32] = 47 bytes
+//
+// flags:
+//   bit 0 = FEC parity chunk (1 = parity, 0 = data)
 
-const ChunkHeaderSize = 2 + 8 + 4 + 32
+const ChunkHeaderSize = 2 + 8 + 1 + 4 + 32
+
+const (
+	FlagData   byte = 0x00
+	FlagParity byte = 0x01
+)
 
 type ChunkHeader struct {
 	FileID   uint16
 	ChunkIdx int64
+	Flags    byte
 	DataLen  uint32
 	Checksum [32]byte
 }
 
 func WriteChunk(w io.Writer, fileID uint16, chunkIdx int64, data []byte) error {
+	return WriteChunkFlags(w, fileID, chunkIdx, FlagData, data)
+}
+
+func WriteChunkFlags(w io.Writer, fileID uint16, chunkIdx int64, flags byte, data []byte) error {
 	h := ChunkHeader{
 		FileID:   fileID,
 		ChunkIdx: chunkIdx,
+		Flags:    flags,
 		DataLen:  uint32(len(data)),
 		Checksum: sha256.Sum256(data),
 	}
 	buf := make([]byte, ChunkHeaderSize)
 	binary.BigEndian.PutUint16(buf[0:], h.FileID)
 	binary.BigEndian.PutUint64(buf[2:], uint64(h.ChunkIdx))
-	binary.BigEndian.PutUint32(buf[10:], h.DataLen)
-	copy(buf[14:], h.Checksum[:])
+	buf[10] = h.Flags
+	binary.BigEndian.PutUint32(buf[11:], h.DataLen)
+	copy(buf[15:], h.Checksum[:])
 	if _, err := w.Write(buf); err != nil {
 		return err
 	}
@@ -170,6 +186,13 @@ func WriteChunk(w io.Writer, fileID uint16, chunkIdx int64, data []byte) error {
 }
 
 func ReadChunk(r io.Reader) (fileID uint16, chunkIdx int64, data []byte, err error) {
+	var flags byte
+	fileID, chunkIdx, flags, data, err = ReadChunkFlags(r)
+	_ = flags
+	return
+}
+
+func ReadChunkFlags(r io.Reader) (fileID uint16, chunkIdx int64, flags byte, data []byte, err error) {
 	buf := make([]byte, ChunkHeaderSize)
 	if _, err = io.ReadFull(r, buf); err != nil {
 		return
@@ -177,8 +200,9 @@ func ReadChunk(r io.Reader) (fileID uint16, chunkIdx int64, data []byte, err err
 	h := ChunkHeader{}
 	h.FileID = binary.BigEndian.Uint16(buf[0:])
 	h.ChunkIdx = int64(binary.BigEndian.Uint64(buf[2:]))
-	h.DataLen = binary.BigEndian.Uint32(buf[10:])
-	copy(h.Checksum[:], buf[14:])
+	h.Flags = buf[10]
+	h.DataLen = binary.BigEndian.Uint32(buf[11:])
+	copy(h.Checksum[:], buf[15:])
 
 	if h.DataLen > ChunkSize*2 {
 		err = fmt.Errorf("chunk data len suspiciously large: %d", h.DataLen)
@@ -193,7 +217,7 @@ func ReadChunk(r io.Reader) (fileID uint16, chunkIdx int64, data []byte, err err
 		err = fmt.Errorf("file %d chunk %d: checksum mismatch", h.FileID, h.ChunkIdx)
 		return
 	}
-	return h.FileID, h.ChunkIdx, data, nil
+	return h.FileID, h.ChunkIdx, h.Flags, data, nil
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

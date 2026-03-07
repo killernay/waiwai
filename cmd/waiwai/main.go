@@ -54,6 +54,7 @@ Examples:
 func sendCmd() *cobra.Command {
 	var streams int
 	var rateMB int64
+	var fecGroup int
 	var sessionID, monitorAddr, certFile, keyFile string
 
 	cmd := &cobra.Command{
@@ -75,6 +76,7 @@ func sendCmd() *cobra.Command {
 			opts := transfer.SendOptions{
 				Addr: addr, Paths: paths, NumStreams: streams,
 				RateLimitMB: rateMB, SessionID: sessionID, MonitorAddr: monitorAddr,
+				FECGroupSize: fecGroup,
 			}
 			if certFile != "" && keyFile != "" {
 				tlsCfg, err := transfer.LoadTLS(certFile, keyFile)
@@ -84,6 +86,9 @@ func sendCmd() *cobra.Command {
 				opts.TLSConfig = tlsCfg
 			}
 			fmt.Printf("⚡ waiwai ส่ง → %s  [%d streams]\n", addr, streams)
+			if fecGroup > 0 {
+				fmt.Printf("🛡️ FEC: ทุก %d chunks สร้าง 1 parity (overhead %.0f%%)\n", fecGroup, 100.0/float64(fecGroup))
+			}
 			if rateMB > 0 {
 				fmt.Printf("🚦 จำกัด bandwidth: %d MB/s\n", rateMB)
 			}
@@ -95,6 +100,7 @@ func sendCmd() *cobra.Command {
 	}
 	cmd.Flags().IntVarP(&streams, "streams", "s", 8, "จำนวน parallel streams")
 	cmd.Flags().Int64VarP(&rateMB, "rate", "r", 0, "จำกัด bandwidth MB/s (0 = ไม่จำกัด)")
+	cmd.Flags().IntVar(&fecGroup, "fec", 0, "FEC group size (เช่น 4 = ทุก 4 chunks สร้าง 1 parity, 0 = ปิด)")
 	cmd.Flags().StringVar(&sessionID, "resume", "", "session ID สำหรับ resume")
 	cmd.Flags().StringVar(&monitorAddr, "monitor", "", "เปิด metrics เช่น :9090")
 	cmd.Flags().StringVar(&certFile, "cert", "", "TLS certificate file")
