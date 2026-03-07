@@ -37,6 +37,7 @@
 | **Multi-stream QUIC** | ส่งพร้อมกัน 8–32 streams ในการเชื่อมต่อเดียว |
 | **Resume** | หลุดกลางทาง เชื่อมใหม่แล้วส่งต่อจากจุดเดิมได้เลย |
 | **ส่งได้ทั้งไฟล์และโฟลเดอร์** | ส่งทั้งโฟลเดอร์พร้อมโครงสร้างในคำสั่งเดียว |
+| **FEC (Forward Error Correction)** | `--fec 4` สร้าง parity chunk กู้คืนข้อมูลที่หายบน lossy network ได้ |
 | **จำกัด bandwidth** | `--rate 50` จำกัดที่ 50 MB/s ไม่กิน bandwidth คนอื่น |
 | **ดูสถานะ realtime** | JSON `/status` + Prometheus `/metrics` ทั้งฝั่งส่งและรับ |
 | **เข้ารหัสทุก byte** | ใช้ TLS 1.3 ผ่าน QUIC โดยอัตโนมัติ |
@@ -140,6 +141,9 @@ waiwai send -s 16 ./footage/ 192.168.1.100:4242
 # จำกัด bandwidth ที่ 50 MB/s
 waiwai send --rate 50 bigfile.bin 192.168.1.100:4242
 
+# เปิด FEC สำหรับ network ที่มี packet loss (เช่น 5G, WiFi ไกล)
+waiwai send --fec 4 bigfile.bin 192.168.1.100:4242
+
 # ส่งต่อจากที่หลุดไป (resume)
 waiwai send --resume myjob bigfile.bin 192.168.1.100:4242
 
@@ -165,6 +169,9 @@ waiwai status localhost:9090
 
 # จำกัด bandwidth ที่ 50 MB/s
 .\waiwai.exe send --rate 50 bigfile.bin 192.168.1.100:4242
+
+# เปิด FEC สำหรับ network ที่มี packet loss (เช่น 5G, WiFi ไกล)
+.\waiwai.exe send --fec 4 bigfile.bin 192.168.1.100:4242
 
 # ส่งต่อจากที่หลุดไป (resume)
 .\waiwai.exe send --resume myjob bigfile.bin 192.168.1.100:4242
@@ -192,6 +199,7 @@ waiwai send [flags] <ไฟล์|โฟลเดอร์>... <host:port>
 |---|---|---|
 | `-s, --streams` | `8` | จำนวน stream ที่ส่งพร้อมกัน |
 | `-r, --rate` | `0` (ไม่จำกัด) | จำกัด bandwidth (หน่วย MB/s) |
+| `--fec` | `0` (ปิด) | FEC group size (เช่น `4` = ทุก 4 chunks สร้าง 1 parity) |
 | `--resume` | | session ID สำหรับส่งต่อจากที่หลุด |
 | `--monitor` | | เปิด metrics server เช่น `:9090` |
 | `--cert` | | ไฟล์ TLS certificate (ไม่บังคับ) |
@@ -226,6 +234,23 @@ waiwai status <monitor-addr>
   Streams:    16 active
   เหลืออีก:   33s
 ```
+
+## FEC (Forward Error Correction)
+
+เมื่อส่งไฟล์ผ่าน network ที่มี packet loss สูง (เช่น 5G, WiFi ระยะไกล) QUIC จะต้อง retransmit chunks ที่หาย ทำให้ช้าลง FEC ช่วยแก้ปัญหานี้โดยสร้าง **parity chunk** เพิ่ม — ถ้า chunk หาย สามารถกู้คืนได้ทันทีโดยไม่ต้องส่งใหม่
+
+```
+--fec 4 หมายถึง:
+
+  Data chunks:   [D1] [D2] [D3] [D4]  →  Parity: [P] = D1 ⊕ D2 ⊕ D3 ⊕ D4
+  ถ้า D2 หาย:   [D1] [??] [D3] [D4]  →  D2 = P ⊕ D1 ⊕ D3 ⊕ D4  ✅ กู้คืนได้!
+```
+
+| ค่า `--fec` | Overhead | กู้คืนได้ | แนะนำสำหรับ |
+|---|---|---|---|
+| `0` (default) | 0% | ไม่มี FEC | LAN, network เสถียร |
+| `8` | 12.5% | หายไม่เกิน 1 ใน 8 | WiFi ทั่วไป, WAN |
+| `4` | 25% | หายไม่เกิน 1 ใน 4 | 5G, WiFi ไกล, network ไม่เสถียร |
 
 ## Monitoring Endpoints
 
